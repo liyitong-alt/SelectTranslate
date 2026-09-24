@@ -2,6 +2,12 @@
 
 一个轻量的 Windows 划词工具：选中英文后按 `Alt + Q`，即可查看中文翻译、音标并朗读原文。程序还会在本地记录词频、星标和拼写测试成绩。
 
+**[下载 Windows 最新版](https://github.com/liyitong-alt/SelectTranslate/releases/latest)** · [观看 50 秒演示](https://github.com/liyitong-alt/SelectTranslate/releases/download/v0.1.1/SelectTranslate-demo.mp4)
+
+Select English text in Windows apps, press `Alt + Q`, and get a quick Chinese translation with pronunciation.
+
+![SelectTranslate：划词、翻译、朗读](assets/social-preview.jpg)
+
 ## 操作演示
 
 1. 在网页中选中英文，按 `Alt + Q`。
