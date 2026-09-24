@@ -85,6 +85,17 @@ SWP_NOACTIVATE = 0x0010
 WRAP_TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:[.+_:/-][A-Za-z0-9]+)*/?|\s+|.", re.DOTALL)
 SINGLE_WORD_RE = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)*")
 WORD_EXTRACT_RE = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)*")
+CHART_STOP_WORDS = tuple(sorted({
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are",
+    "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but",
+    "by", "can", "could", "did", "do", "does", "down", "during", "each", "few", "for", "from",
+    "had", "has", "have", "he", "her", "hers", "him", "his", "how", "i", "if", "in", "into",
+    "is", "it", "its", "me", "might", "more", "most", "must", "my", "no", "nor", "not", "of",
+    "on", "or", "our", "ours", "out", "over", "she", "should", "so", "some", "such", "than",
+    "that", "the", "their", "theirs", "them", "then", "there", "these", "they", "this", "those",
+    "through", "to", "too", "under", "up", "us", "very", "was", "we", "were", "what", "when",
+    "where", "which", "while", "who", "whom", "why", "will", "with", "would", "you", "your", "yours",
+}))
 OPENING_PUNCTUATION = "（([【《“‘"
 CLOSING_PUNCTUATION = "，。！？；：、）)]】》”’,.!?;:"
 
@@ -841,9 +852,10 @@ class WordStore:
 
     def top_words(self, limit: int = 12) -> list[sqlite3.Row]:
         with self._connect() as connection:
+            placeholders = ", ".join("?" for _ in CHART_STOP_WORDS)
             return connection.execute(
-                "SELECT word, total_count, starred FROM words ORDER BY total_count DESC, last_seen DESC LIMIT ?",
-                (limit,),
+                f"SELECT word, total_count, starred FROM words WHERE word NOT IN ({placeholders}) ORDER BY total_count DESC, last_seen DESC LIMIT ?",
+                (*CHART_STOP_WORDS, limit),
             ).fetchall()
 
     def history(self, search: str = "", starred_only: bool = False, limit: int = 500) -> list[sqlite3.Row]:
@@ -889,7 +901,7 @@ class WordStore:
 
 
 def load_user_settings() -> dict[str, str]:
-    defaults = {"translation_engine": "auto", "accent_color": DEFAULT_ACCENT}
+    defaults = {"translation_engine": "auto", "accent_color": DEFAULT_ACCENT, "popup_font_scale": "1.0"}
     defaults.update({f"{provider}_model": str(config["model"]) for provider, config in LLM_PROVIDERS.items()})
     try:
         data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
@@ -898,6 +910,12 @@ def load_user_settings() -> dict[str, str]:
         accent_color = str(data.get("accent_color", "")).strip().lower()
         if re.fullmatch(r"#[0-9a-f]{6}", accent_color):
             defaults["accent_color"] = accent_color
+        try:
+            font_scale = float(data.get("popup_font_scale", 1.0))
+        except (TypeError, ValueError):
+            font_scale = 1.0
+        if 0.8 <= font_scale <= 1.6:
+            defaults["popup_font_scale"] = f"{font_scale:.1f}"
         for provider in LLM_PROVIDERS:
             model = str(data.get(f"{provider}_model", "")).strip()
             if model:
@@ -963,6 +981,7 @@ class App:
         self.store = WordStore(WORD_DB)
         self.user_settings = load_user_settings()
         set_theme_palette(self.user_settings["accent_color"])
+        self.popup_font_scale = float(self.user_settings["popup_font_scale"])
         self.api_keys = load_api_secrets()
         self.translation_engine = self.user_settings["translation_engine"]
         self.source_text = ""
@@ -1110,6 +1129,21 @@ class App:
             font=("Segoe UI Symbol", 15),
         )
         self.settings_button.pack(side="right")
+        self.font_increase_button = tk.Button(
+            icon_row, text="A+", command=lambda: self._change_popup_font_size(0.1),
+            bg=COLOR_SURFACE, fg=COLOR_MUTED, disabledforeground=COLOR_SUBTLE,
+            activebackground=COLOR_SURFACE, activeforeground=COLOR_ACCENT_TEXT,
+            relief="flat", bd=0, padx=3, pady=2, cursor="hand2", font=("Segoe UI", 9, "bold"),
+        )
+        self.font_increase_button.pack(side="right")
+        self.font_decrease_button = tk.Button(
+            icon_row, text="A−", command=lambda: self._change_popup_font_size(-0.1),
+            bg=COLOR_SURFACE, fg=COLOR_MUTED, disabledforeground=COLOR_SUBTLE,
+            activebackground=COLOR_SURFACE, activeforeground=COLOR_ACCENT_TEXT,
+            relief="flat", bd=0, padx=3, pady=2, cursor="hand2", font=("Segoe UI", 9, "bold"),
+        )
+        self.font_decrease_button.pack(side="right")
+        self._update_font_buttons()
         self.speaker = tk.Canvas(action_area, width=50, height=50, bg=COLOR_SURFACE, highlightthickness=0, cursor="hand2")
         self.speaker.pack()
         self.speaker_circle = self.speaker.create_oval(3, 3, 47, 47, fill=COLOR_ACCENT_SOFT, outline=COLOR_BORDER, width=1)
@@ -1167,15 +1201,29 @@ class App:
             self.phonetic_label.pack_configure(pady=(0, px(5)))
         self.popup_action_area.pack_configure(padx=(px(14), 0))
         self.popup_icon_row.pack_configure(pady=(0, px(5)))
-        self.phonetic_label.configure(font=("Segoe UI", px(11)))
-        self.status_label.configure(font=("Microsoft YaHei UI", px(8)))
         self.star_button.configure(font=("Segoe UI Symbol", px(19)), padx=px(5), pady=px(1))
         self.settings_button.configure(font=("Segoe UI Symbol", px(15)), padx=px(5), pady=px(2))
+        self.font_increase_button.configure(font=("Segoe UI", px(9), "bold"), padx=px(3), pady=px(2))
+        self.font_decrease_button.configure(font=("Segoe UI", px(9), "bold"), padx=px(3), pady=px(2))
         self.speaker.configure(width=px(50), height=px(50))
         self.speaker.scale("all", 0, 0, ratio, ratio)
         self.speaker.itemconfigure(self.speaker_circle, width=px(1))
         self.speaker.itemconfigure(self.speaker_wave_inner, width=px(2))
         self.speaker.itemconfigure(self.speaker_wave_outer, width=px(2))
+
+    def _update_font_buttons(self) -> None:
+        self.font_decrease_button.configure(state="normal" if self.popup_font_scale > 0.8 else "disabled")
+        self.font_increase_button.configure(state="normal" if self.popup_font_scale < 1.6 else "disabled")
+
+    def _change_popup_font_size(self, step: float) -> None:
+        new_scale = round(min(1.6, max(0.8, self.popup_font_scale + step)), 1)
+        if new_scale == self.popup_font_scale:
+            return
+        self.popup_font_scale = new_scale
+        self.user_settings["popup_font_scale"] = f"{new_scale:.1f}"
+        save_user_settings(self.user_settings)
+        self._update_font_buttons()
+        self._resize_at_anchor()
 
     def _update_star_button(self) -> None:
         if not self.current_word:
@@ -1323,7 +1371,7 @@ class App:
         ).pack(anchor="w", padx=4)
         tk.Label(
             overview,
-            text="选中的句子也会自动拆分并计入词频",
+            text="选中的句子也会计入词频；常见虚词仅在此图表中隐藏",
             bg=COLOR_BG,
             fg=COLOR_MUTED,
             font=("Microsoft YaHei UI", 8),
@@ -2055,16 +2103,20 @@ class App:
         else:
             width = 642 + int((content_length - 100) * 1.35)
         width = min(max_width, round(width * scale))
-        text_width = width - round(110 * scale)
-        source_size = round((9 if len(self.card_source) <= 150 else 8) * scale)
+        self.window.update_idletasks()
+        text_width = max(100, width - self.popup_action_area.winfo_reqwidth() - round(50 * scale))
+        text_scale = scale * self.popup_font_scale
+        source_size = max(7, round((9 if len(self.card_source) <= 150 else 8) * text_scale))
         if len(self.card_translation) <= 80:
-            translation_font = ("Microsoft YaHei UI", round(14 * scale), "bold")
+            translation_font = ("Microsoft YaHei UI", round(14 * text_scale), "bold")
         elif len(self.card_translation) <= 260:
-            translation_font = ("Microsoft YaHei UI", round(11 * scale), "bold")
+            translation_font = ("Microsoft YaHei UI", round(11 * text_scale), "bold")
         else:
-            translation_font = ("Microsoft YaHei UI", round(10 * scale))
+            translation_font = ("Microsoft YaHei UI", round(10 * text_scale))
         self.source_label.configure(font=("Segoe UI", source_size))
         self.translation_label.configure(font=translation_font)
+        self.phonetic_label.configure(font=("Segoe UI", round(11 * text_scale)))
+        self.status_label.configure(font=("Microsoft YaHei UI", max(7, round(8 * text_scale))))
         self.source_label.configure(text=self._natural_wrap(self.card_source, text_width, self.source_label.cget("font")), wraplength=0)
         self.translation_label.configure(
             text=self._natural_wrap(self.card_translation, text_width, self.translation_label.cget("font")),

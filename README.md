@@ -7,7 +7,8 @@
 - 全局快捷键划词翻译，支持浏览器、PDF 阅读器和常见桌面应用
 - 英文自然语音朗读和语音缓存
 - 单词音标、星标、查询历史和句内词频统计
-- 高频词图表与“看中文、听读音、拼英文”测试
+- 自动隐藏常见虚词的高频词图表，与“看中文、听读音、拼英文”测试
+- 翻译浮窗可用 `A−` / `A+` 调整字号，并自动记住大小
 - 烟熏深色主题，并可在设置中自选界面强调色
 - 可在设置中选择本地数据目录
 - 内置免 Key 翻译，并可配置 DeepSeek、Qwen、GLM API
@@ -46,7 +47,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 构建结果：
 
 - 免安装目录：`dist\SelectTranslate`
-- 安装程序：`release\SelectTranslate-Setup-0.1.0.exe`
+- 安装程序：`release\SelectTranslate-Setup-0.1.1.exe`
 
 ## 隐私
 

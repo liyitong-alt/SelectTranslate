@@ -1,5 +1,5 @@
 #define MyAppName "划词翻译朗读"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "SelectTranslate contributors"
 #define MyAppExeName "SelectTranslate.exe"
 
