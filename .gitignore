@@ -1,0 +1,10 @@
+.venv/
+build/
+dist/
+release/
+__pycache__/
+*.py[cod]
+*.log
+.codegraph/
+assets/icon-concepts/
+assets/icon-concepts-v2/

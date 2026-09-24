@@ -1,0 +1,2 @@
+edge-tts==7.2.8
+eng-to-ipa==0.0.2
